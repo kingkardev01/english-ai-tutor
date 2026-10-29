@@ -1,0 +1,45 @@
+import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'app/app.dart';
+import 'core/config/app_config.dart';
+import 'features/auth/data/auth_providers.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final firebaseOptions = AppConfig.firebaseOptions;
+  if (firebaseOptions == null && !AppConfig.hasGeminiKey) {
+    runApp(const SetupRequiredApp());
+    return;
+  }
+
+  if (firebaseOptions != null) {
+    await Firebase.initializeApp(options: firebaseOptions);
+
+    // Debug builds print a debug token to the console; add it under
+    // App Check > Apps > Manage debug tokens in the Firebase console.
+    await FirebaseAppCheck.instance.activate(
+      providerAndroid: kDebugMode
+          ? const AndroidDebugProvider()
+          : const AndroidPlayIntegrityProvider(),
+      providerApple: kDebugMode
+          ? const AppleDebugProvider()
+          : const AppleAppAttestWithDeviceCheckFallbackProvider(),
+    );
+  }
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        // Sign-in needs Firebase; with only a Gemini key, the app opens
+        // straight into the chat.
+        signInEnabledProvider.overrideWithValue(firebaseOptions != null),
+      ],
+      child: const App(),
+    ),
+  );
+}
