@@ -1,0 +1,12 @@
+.dart_tool/
+build/
+.idea/
+*.iml
+.DS_Store
+.flutter-plugins-dependencies
+config.json
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+ios/Pods/
+*.jks
+key.properties
