@@ -120,4 +120,30 @@ void main() {
       containsAll(['hasMistake', 'corrected', 'explanation', 'score']),
     );
   });
+
+  test(
+    'Bangla setting reaches the grammar prompt; field stays optional',
+    () async {
+      requests.clear();
+      final service = GeminiApiService(
+        const TutorSettings(explainInBangla: true),
+        apiKey: 'k',
+        client: MockClient((req) async {
+          requests.add(req);
+          return http.Response('{}', 200);
+        }),
+      );
+
+      await service.checkGrammar('I has a pen');
+
+      final body = jsonDecode(requests.single.body);
+      expect(
+        body['contents'][0]['parts'][0]['text'],
+        contains('banglaExplanation'),
+      );
+      final schema = body['generationConfig']['responseSchema'];
+      expect(schema['properties'], contains('banglaExplanation'));
+      expect(schema['required'], isNot(contains('banglaExplanation')));
+    },
+  );
 }

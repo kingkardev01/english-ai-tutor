@@ -5,6 +5,7 @@ import '../../auth/data/auth_providers.dart';
 import '../../chat/data/chat_providers.dart';
 import '../../chat/domain/tutor_settings.dart';
 import '../../chat/presentation/chat_screen.dart';
+import '../../history/presentation/history_screen.dart';
 import '../../progress/data/progress_providers.dart';
 import '../../progress/presentation/progress_screen.dart';
 
@@ -15,12 +16,19 @@ class TopicsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final level = ref.watch(tutorSettingsProvider.select((s) => s.level));
+    final settings = ref.watch(tutorSettingsProvider);
+    final level = settings.level;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('AI English Tutor'),
         actions: [
+          IconButton(
+            key: const Key('history_button'),
+            tooltip: 'Chat history',
+            icon: const Icon(Icons.history),
+            onPressed: () => _open(context, const HistoryScreen()),
+          ),
           IconButton(
             key: const Key('progress_button'),
             tooltip: 'Progress',
@@ -52,7 +60,17 @@ class TopicsScreen extends ConsumerWidget {
             onSelectionChanged: (s) =>
                 ref.read(tutorSettingsProvider.notifier).setLevel(s.single),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            key: const Key('bangla_switch'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Explain mistakes in Bangla too'),
+            subtitle: const Text('বাংলায় ব্যাখ্যা · helpful for beginners'),
+            value: settings.explainInBangla,
+            onChanged: (v) =>
+                ref.read(tutorSettingsProvider.notifier).setExplainInBangla(v),
+          ),
+          const SizedBox(height: 16),
           Text('Choose a topic', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
           for (final topic in Topic.values)

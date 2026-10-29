@@ -54,4 +54,34 @@ void main() {
       );
     });
   });
+
+  group('banglaExplanation', () {
+    test('is read when present', () {
+      final c = Correction.fromJson('a', {
+        'hasMistake': true,
+        'score': 5,
+        'banglaExplanation': ' এখানে "go" হবে। ',
+      });
+      expect(c.banglaExplanation, 'এখানে "go" হবে।');
+      expect(c.toJson()['banglaExplanation'], 'এখানে "go" হবে।');
+    });
+
+    test('is null when missing or blank', () {
+      expect(
+        Correction.fromJson('a', {
+          'hasMistake': false,
+          'score': 10,
+        }).banglaExplanation,
+        isNull,
+      );
+      expect(
+        Correction.fromJson('a', {
+          'hasMistake': false,
+          'score': 10,
+          'banglaExplanation': '  ',
+        }).banglaExplanation,
+        isNull,
+      );
+    });
+  });
 }

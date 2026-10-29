@@ -15,7 +15,8 @@ import '../domain/progress_repository.dart';
 ///                                  avgScore
 ///         messages/{messageId}     role, text, createdAt
 ///       mistakes/{mistakeId}       original, corrected, explanation,
-///                                  topic, createdAt, reviewed
+///                                  banglaExplanation, topic, createdAt,
+///                                  reviewed
 class FirestoreProgressRepository implements ProgressRepository {
   FirestoreProgressRepository(this._db, this._uid, {DateTime Function()? clock})
     : _clock = clock ?? DateTime.now;
@@ -111,6 +112,7 @@ class FirestoreProgressRepository implements ProgressRepository {
           'corrected': correction.corrected,
           'explanation': correction.explanation,
           'topic': topic.label,
+          'banglaExplanation': ?correction.banglaExplanation,
           'createdAt': Timestamp.fromDate(_clock()),
           'reviewed': false,
         });
@@ -130,6 +132,7 @@ class FirestoreProgressRepository implements ProgressRepository {
       corrected: data['corrected'] as String? ?? '',
       explanation: data['explanation'] as String? ?? '',
       topic: data['topic'] as String?,
+      banglaExplanation: data['banglaExplanation'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime(0),
       reviewed: data['reviewed'] as bool? ?? false,
     );

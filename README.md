@@ -1,16 +1,23 @@
 # AI English Tutor
 
-
 Practise English by chatting with an AI tutor that corrects your grammar in real time.
 Built with Flutter, Riverpod and Gemini (Firebase AI Logic).
 
 Made for Bangla-speaking students and job seekers who want daily speaking and writing practice without a human tutor.
 
-<!-- ![Demo](docs/demo.gif) -->
+<!-- Add after recording: ![Demo](docs/demo.gif) -->
 
 ## Screenshots
 
-_Coming soon: 3–4 phone screenshots in a row._
+<!-- Add 3–4 phone screenshots in a row, for example:
+<p>
+  <img src="docs/home.png" width="200">
+  <img src="docs/chat.png" width="200">
+  <img src="docs/progress.png" width="200">
+  <img src="docs/history.png" width="200">
+</p>
+-->
+_Screenshots coming soon._
 
 ## Features
 
@@ -20,9 +27,10 @@ _Coming soon: 3–4 phone screenshots in a row._
 - **Practice topics and levels.** Daily life, job interview, travel or IELTS speaking, at Beginner, Intermediate or Advanced. Both feed the tutor's system prompt, and each topic starts a fresh session.
 - **Progress tracking.** Daily streak, average score and sentences practised, saved to Firestore (or on the device when running without Firebase).
 - **Mistake review.** Every corrected mistake is saved; mark each one as learned once you've got it.
+- **Voice mode.** Speak instead of typing (speech-to-text), and hear the tutor's replies (text-to-speech). With voice mode on, your message is sent when you stop talking and the reply is read aloud: a hands-free speaking practice.
+- **Bangla explanations.** An optional switch adds a short Bangla explanation to each correction, for beginners. It is saved with your mistakes for review.
+- **Offline chat history.** Every chat is cached on the phone with Hive, so past conversations and their corrections can be reread without internet.
 - **Friendly error handling.** Offline → retry button that keeps your message; quota hit → "Tutor is busy"; blocked or empty reply → "Could you say that another way?"; bad JSON → the card is skipped, never a crash.
-
-Planned: voice mode, Bangla explanations, offline chat history.
 
 ## Architecture
 
@@ -42,13 +50,22 @@ lib/
       domain/              # Progress (streak + score logic), Mistake, ProgressRepository (interface)
       data/                # FirestoreProgressRepository, LocalProgressRepository
       presentation/        # ProgressScreen, MistakesScreen
+    history/
+      domain/              # ChatRecord, HistoryRepository (interface)
+      data/                # HiveHistoryRepository
+      presentation/        # HistoryScreen, HistoryDetailScreen
+    voice/
+      domain/              # SpeechInput, SpeechOutput (interfaces)
+      data/                # speech_to_text and flutter_tts implementations
     auth/
       domain/ data/ presentation/
-test/                      # mirrors lib/
+test/                      # mirrors lib/, plus fakes in test/helpers/
+integration_test/          # full app flow on a device or simulator
 ```
 
 - **Clean architecture.** Screens never call Firebase. They talk to `TutorRepository`, and only the data layer knows Gemini exists, so the model can be swapped, or faked in tests, without touching the UI.
 - **Riverpod.** `ChatController` (a `Notifier`) owns the chat state. Tests override `tutorRepositoryProvider` with a fake.
+- **Every outside dependency is an interface.** AI, progress, chat history, microphone and speaker each sit behind one, so all tests run with fakes: no network, keys or device needed.
 - **Progress behind an interface too.** `ProgressRepository` has a Firestore version (signed in) and a `shared_preferences` version (Gemini key only). The chat saves progress in the background, and a failed save never interrupts the conversation.
 - **Two Gemini calls per message.** A streaming chat call for the conversation and a structured-JSON call (`responseSchema`) for the grammar check run in parallel. The reply starts immediately, and the correction card appears when it is ready.
 
@@ -60,16 +77,21 @@ All user data lives under one document per user, so the security rules in [`fire
 users/{uid}                  level, streakDays, lastPracticeDate, totalScore, sentencesChecked
   sessions/{sessionId}       topic, level, startedAt, messageCount, avgScore
     messages/{messageId}     role (user | tutor), text, createdAt
-  mistakes/{mistakeId}       original, corrected, explanation, topic, createdAt, reviewed
+  mistakes/{mistakeId}       original, corrected, explanation, banglaExplanation, topic, createdAt, reviewed
 ```
 
 Each correction updates the streak, the session average and the mistake list in one transaction, so they never disagree.
+
+Chat history is also kept on the device (Hive box `chat_history`, newest 50 chats), so it works offline and without Firebase.
 
 ## Technical challenges
 
 - Streaming + JSON correction in parallel without blocking the UI
 - Mapping SDK and network errors to failures the learner can understand
 - Keeping AI costs safe with App Check and no API key in the app
+- Two backends behind one interface: Firebase AI Logic, or the Gemini REST API with server-sent-event streaming
+- A streak that follows the learner's own calendar days, safe across month ends and daylight saving
+- Voice mode that stops the tutor's speech before listening, so the microphone doesn't hear it
 
 ## Run locally (bring your own keys)
 
@@ -92,6 +114,8 @@ Fill in **either or both** of these:
 | Both | Firebase sign-in, with chat going straight to the Gemini API. |
 | Neither | The app opens on a "No keys found" screen. |
 
+Voice mode needs a real device or simulator with a microphone; the app asks for microphone and speech-recognition permission the first time you tap the mic.
+
 > A `GEMINI_API_KEY` is built into the app binary. Use it only for local testing, and never share an APK built with it. For anything public, use Firebase AI Logic.
 
 ### Firebase setup (optional)
@@ -111,11 +135,18 @@ Fill in **either or both** of these:
 ## Tests
 
 ```sh
-flutter test
+flutter test                 # unit + widget tests, no device needed
+flutter test integration_test  # full app flow on a running device or simulator
 ```
 
-Unit tests cover `Correction.fromJson`, the prompts, the repository with a mocked `AiService` (mocktail), and the Gemini REST client with a fake HTTP client (SSE parsing, history, errors). Progress tests cover streak rules (same day, next day, missed day, month boundary), on-device storage and the Firestore repository against `fake_cloud_firestore`. The controller and widget tests drive a fake `TutorRepository` chunk by chunk to check streaming, correction cards, retry, topic switching and mistake review.
+Unit tests cover `Correction.fromJson`, the prompts, the repository with a mocked `AiService` (mocktail), and the Gemini REST client with a fake HTTP client (SSE parsing, history, errors). Progress tests cover streak rules (same day, next day, missed day, month boundary), on-device storage and the Firestore repository against `fake_cloud_firestore`. The controller and widget tests drive a fake `TutorRepository` chunk by chunk to check streaming, correction cards, retry, topic switching and mistake review. Voice tests use a fake microphone and speaker; history tests run Hive against a temp folder. The integration test goes from picking a topic to a streamed reply, a correction card and the chat appearing in history.
 
 ## What I learned
 
+<!-- Write 3–5 short points in your own words, for example:
+- What surprised you about streaming LLM replies in Flutter
+- Why structured JSON output made the correction card reliable
+- What clean architecture made easy to test
+- What you would do differently next time
+-->
 _To be written._

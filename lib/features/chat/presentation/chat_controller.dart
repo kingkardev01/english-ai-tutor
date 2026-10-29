@@ -4,6 +4,8 @@ import 'dart:developer';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/tutor_failure.dart';
+import '../../history/data/history_providers.dart';
+import '../../history/domain/chat_record.dart';
 import '../../progress/data/progress_providers.dart';
 import '../../progress/domain/progress_repository.dart';
 import '../data/chat_providers.dart';
@@ -52,6 +54,8 @@ class ChatController extends Notifier<ChatState> {
   StreamSubscription<String>? _replySub;
   Future<String>? _session;
   late TutorSettings _settings;
+  late String _historyId;
+  late DateTime _startedAt;
   int _nextId = 0;
 
   TutorRepository get _repo => ref.read(tutorRepositoryProvider);
@@ -63,6 +67,8 @@ class ChatController extends Notifier<ChatState> {
     _settings = ref.watch(tutorSettingsProvider);
     _replySub?.cancel();
     _session = null;
+    _startedAt = DateTime.now();
+    _historyId = _startedAt.microsecondsSinceEpoch.toString();
     ref.onDispose(() => _replySub?.cancel());
     return const ChatState();
   }
@@ -104,6 +110,7 @@ class ChatController extends Notifier<ChatState> {
           onDone: () {
             _update(tutorMsg.id, (m) => m.copyWith(isStreaming: false));
             state = state.copyWith(isReplying: false);
+            unawaited(_saveHistory());
             final reply = state.messages
                 .where((m) => m.id == tutorMsg.id)
                 .firstOrNull;
@@ -142,10 +149,36 @@ class ChatController extends Notifier<ChatState> {
     final correction = await _repo.check(userMsg.text);
     if (!ref.mounted || correction == null) return;
     _update(userMsg.id, (m) => m.copyWith(correction: correction));
+    unawaited(_saveHistory());
     await _saveProgress(
       (repo, sessionId) =>
           repo.recordCorrection(sessionId, correction, topic: topic),
     );
+  }
+
+  /// Keeps the finished part of this chat on the device for offline
+  /// reading. Called again as replies and corrections arrive.
+  Future<void> _saveHistory() async {
+    final finished = [
+      for (final m in state.messages)
+        if (!m.isStreaming && !m.failed && m.text.isNotEmpty) m,
+    ];
+    if (finished.isEmpty) return;
+    try {
+      await ref
+          .read(historyRepositoryProvider)
+          .save(
+            ChatRecord(
+              id: _historyId,
+              topic: _settings.topic,
+              level: _settings.level,
+              startedAt: _startedAt,
+              messages: finished,
+            ),
+          );
+    } on Object catch (e) {
+      log('History not saved', error: e, name: 'ChatController');
+    }
   }
 
   Future<void> _saveProgress(

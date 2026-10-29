@@ -1,7 +1,6 @@
 import 'package:english_ai_tutor/features/chat/data/chat_providers.dart';
 import 'package:english_ai_tutor/features/chat/domain/tutor_settings.dart';
 import 'package:english_ai_tutor/features/chat/presentation/chat_screen.dart';
-import 'package:english_ai_tutor/features/progress/data/progress_providers.dart';
 import 'package:english_ai_tutor/features/progress/domain/progress.dart';
 import 'package:english_ai_tutor/features/topics/presentation/topics_screen.dart';
 import 'package:flutter/material.dart';
@@ -9,19 +8,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../helpers/fake_progress_repository.dart';
-import '../../../helpers/fake_tutor_repository.dart';
+import '../../../helpers/test_overrides.dart';
 
 void main() {
   late ProviderContainer container;
 
   Future<void> pumpTopics(WidgetTester tester, {Progress? progress}) {
     container = ProviderContainer(
-      overrides: [
-        tutorRepositoryProvider.overrideWithValue(FakeTutorRepository()),
-        progressRepositoryProvider.overrideWithValue(
-          FakeProgressRepository(progress: progress ?? const Progress()),
+      overrides: testOverrides(
+        progress: FakeProgressRepository(
+          progress: progress ?? const Progress(),
         ),
-      ],
+      ),
     );
     addTearDown(container.dispose);
     return tester.pumpWidget(
@@ -61,5 +59,14 @@ void main() {
     expect(settings.topic, Topic.ieltsSpeaking);
     expect(find.byType(ChatScreen), findsOneWidget);
     expect(find.text('IELTS speaking · Advanced'), findsOneWidget);
+  });
+
+  testWidgets('the Bangla switch updates the settings', (tester) async {
+    await pumpTopics(tester);
+
+    await tester.tap(find.byKey(const Key('bangla_switch')));
+    await tester.pump();
+
+    expect(container.read(tutorSettingsProvider).explainInBangla, isTrue);
   });
 }

@@ -18,12 +18,14 @@ class GeminiApiService implements AiService {
     required this._apiKey,
     http.Client? client,
   }) : _systemPrompt = tutorPrompt(settings),
+       _bangla = settings.explainInBangla,
        _client = client ?? http.Client();
 
   static const _baseUrl =
       'https://generativelanguage.googleapis.com/v1beta/models/$kGeminiModel';
 
   final String _systemPrompt;
+  final bool _bangla;
   final String _apiKey;
   final http.Client _client;
   final _history = <Map<String, Object>>[];
@@ -80,7 +82,9 @@ class GeminiApiService implements AiService {
       Uri.parse('$_baseUrl:generateContent'),
       headers: _headers,
       body: jsonEncode({
-        'contents': [_turn('user', grammarCheckPrompt(sentence))],
+        'contents': [
+          _turn('user', grammarCheckPrompt(sentence, bangla: _bangla)),
+        ],
         'generationConfig': {
           'responseMimeType': 'application/json',
           'responseSchema': correctionSchema.toJson(),

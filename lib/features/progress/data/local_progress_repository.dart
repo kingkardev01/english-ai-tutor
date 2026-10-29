@@ -77,6 +77,7 @@ class LocalProgressRepository implements ProgressRepository {
         corrected: correction.corrected,
         explanation: correction.explanation,
         topic: topic.label,
+        banglaExplanation: correction.banglaExplanation,
         createdAt: now,
       );
       await _saveMistakes([mistake, ..._mistakes].take(_mistakeLimit).toList());

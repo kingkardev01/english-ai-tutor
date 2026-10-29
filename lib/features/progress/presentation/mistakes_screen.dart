@@ -108,6 +108,10 @@ class _MistakeCard extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(mistake.explanation, style: theme.textTheme.bodySmall),
                   ],
+                  if (mistake.banglaExplanation case final bangla?) ...[
+                    const SizedBox(height: 2),
+                    Text(bangla, style: theme.textTheme.bodySmall),
+                  ],
                   const SizedBox(height: 6),
                   Text(meta, style: theme.textTheme.labelSmall),
                 ],

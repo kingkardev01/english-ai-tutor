@@ -16,4 +16,12 @@ void main() {
   test('grammarCheckPrompt quotes the sentence', () {
     expect(grammarCheckPrompt('I has a cat'), contains('"I has a cat"'));
   });
+
+  test('grammarCheckPrompt asks for Bangla only when turned on', () {
+    expect(grammarCheckPrompt('x'), contains('Leave banglaExplanation out'));
+    expect(
+      grammarCheckPrompt('x', bangla: true),
+      contains('simple Bangla (Bengali script) in banglaExplanation'),
+    );
+  });
 }

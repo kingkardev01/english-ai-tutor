@@ -1,24 +1,26 @@
 import 'package:english_ai_tutor/core/errors/tutor_failure.dart';
-import 'package:english_ai_tutor/features/chat/data/chat_providers.dart';
 import 'package:english_ai_tutor/features/chat/domain/correction.dart';
 import 'package:english_ai_tutor/features/chat/presentation/chat_screen.dart';
-import 'package:english_ai_tutor/features/progress/data/progress_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../../helpers/fake_progress_repository.dart';
 import '../../../helpers/fake_tutor_repository.dart';
+import '../../../helpers/fake_voice.dart';
+import '../../../helpers/test_overrides.dart';
 
 void main() {
   late FakeTutorRepository repo;
+  late FakeSpeechInput speechIn;
+  late FakeSpeechOutput speechOut;
 
   Future<void> pumpChat(WidgetTester tester) => tester.pumpWidget(
     ProviderScope(
-      overrides: [
-        tutorRepositoryProvider.overrideWithValue(repo),
-        progressRepositoryProvider.overrideWithValue(FakeProgressRepository()),
-      ],
+      overrides: testOverrides(
+        tutor: repo,
+        speechInput: speechIn,
+        speechOutput: speechOut,
+      ),
       child: const MaterialApp(home: ChatScreen()),
     ),
   );
@@ -29,7 +31,11 @@ void main() {
     await tester.pump();
   }
 
-  setUp(() => repo = FakeTutorRepository());
+  setUp(() {
+    repo = FakeTutorRepository();
+    speechIn = FakeSpeechInput();
+    speechOut = FakeSpeechOutput();
+  });
 
   testWidgets('shows streaming text and the correction card', (tester) async {
     repo.correctionFor = (s) => Correction(
@@ -74,5 +80,71 @@ void main() {
 
     expect(repo.sentMessages, ['Hello', 'Hello']);
     expect(find.text(const TutorBusyFailure().message), findsNothing);
+  });
+
+  group('voice', () {
+    Future<void> finishReply(WidgetTester tester, String text) async {
+      repo.emit(text);
+      await repo.finish();
+      await tester.pump();
+    }
+
+    testWidgets('mic fills the text box without sending', (tester) async {
+      await pumpChat(tester);
+
+      await tester.tap(find.byKey(const Key('mic_button')));
+      await tester.pump();
+      speechIn.hear('I like tea');
+      await tester.pump();
+
+      expect(find.widgetWithText(TextField, 'I like tea'), findsOneWidget);
+      expect(repo.sentMessages, isEmpty);
+    });
+
+    testWidgets('voice mode sends speech and reads the reply aloud', (
+      tester,
+    ) async {
+      await pumpChat(tester);
+      await tester.tap(find.byKey(const Key('voice_mode_button')));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('mic_button')));
+      await tester.pump();
+      speechIn.hear('I like tea', isFinal: false);
+      await tester.pump();
+      expect(repo.sentMessages, isEmpty);
+
+      speechIn.hear('I like tea a lot');
+      await tester.pump();
+      expect(repo.sentMessages, ['I like tea a lot']);
+
+      await finishReply(tester, 'Me too! Do you like coffee?');
+      expect(speechOut.spoken, ['Me too! Do you like coffee?']);
+    });
+
+    testWidgets('replies are not read aloud when voice mode is off', (
+      tester,
+    ) async {
+      await pumpChat(tester);
+      await sendText(tester, 'Hello');
+      await finishReply(tester, 'Hi!');
+
+      expect(speechOut.spoken, isEmpty);
+
+      await tester.tap(find.byTooltip('Listen'));
+      expect(speechOut.spoken, ['Hi!']);
+    });
+
+    testWidgets('shows a message when the microphone is unavailable', (
+      tester,
+    ) async {
+      speechIn = FakeSpeechInput(available: false);
+      await pumpChat(tester);
+
+      await tester.tap(find.byKey(const Key('mic_button')));
+      await tester.pump();
+
+      expect(find.textContaining('not available'), findsOneWidget);
+    });
   });
 }

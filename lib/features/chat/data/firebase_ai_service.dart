@@ -9,7 +9,8 @@ import 'tutor_prompt.dart';
 /// protects the quota.
 class FirebaseAiService implements AiService {
   FirebaseAiService(TutorSettings settings)
-    : _chatModel = FirebaseAI.googleAI().generativeModel(
+    : _bangla = settings.explainInBangla,
+      _chatModel = FirebaseAI.googleAI().generativeModel(
         model: kGeminiModel,
         systemInstruction: Content.system(tutorPrompt(settings)),
       ),
@@ -21,6 +22,7 @@ class FirebaseAiService implements AiService {
         ),
       );
 
+  final bool _bangla;
   final GenerativeModel _chatModel;
   final GenerativeModel _checker;
   late final ChatSession _chat = _chatModel.startChat();
@@ -33,7 +35,7 @@ class FirebaseAiService implements AiService {
   @override
   Future<String?> checkGrammar(String sentence) async {
     final res = await _checker.generateContent([
-      Content.text(grammarCheckPrompt(sentence)),
+      Content.text(grammarCheckPrompt(sentence, bangla: _bangla)),
     ]);
     return res.text;
   }
@@ -46,5 +48,7 @@ final correctionSchema = Schema.object(
     'corrected': Schema.string(),
     'explanation': Schema.string(),
     'score': Schema.integer(description: '0-10, where 10 is perfect'),
+    'banglaExplanation': Schema.string(),
   },
+  optionalProperties: ['banglaExplanation'],
 );

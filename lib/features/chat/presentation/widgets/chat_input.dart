@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class ChatInput extends StatefulWidget {
+import '../../../voice/data/voice_providers.dart';
+
+class ChatInput extends ConsumerStatefulWidget {
   const ChatInput({super.key, required this.enabled, required this.onSend});
 
   final bool enabled;
   final ValueChanged<String> onSend;
 
   @override
-  State<ChatInput> createState() => _ChatInputState();
+  ConsumerState<ChatInput> createState() => _ChatInputState();
 }
 
-class _ChatInputState extends State<ChatInput> {
+class _ChatInputState extends ConsumerState<ChatInput> {
   final _controller = TextEditingController();
+  bool _listening = false;
 
   @override
   void dispose() {
@@ -26,14 +30,58 @@ class _ChatInputState extends State<ChatInput> {
     _controller.clear();
   }
 
+  Future<void> _toggleMic() async {
+    final speech = ref.read(speechInputProvider);
+    if (_listening) {
+      await speech.stop();
+      return;
+    }
+    if (!await speech.initialize()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Speech recognition is not available. '
+            'Check microphone permission.',
+          ),
+        ),
+      );
+      return;
+    }
+    // Don't let the tutor's voice be picked up by the microphone.
+    await ref.read(speechOutputProvider).stop();
+    if (!mounted) return;
+    setState(() => _listening = true);
+    await speech.listen(
+      onResult: (words, isFinal) {
+        if (!mounted) return;
+        _controller.text = words;
+        if (isFinal && ref.read(voiceModeProvider)) _send();
+      },
+      onDone: () {
+        if (mounted) setState(() => _listening = false);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+        padding: const EdgeInsets.fromLTRB(4, 8, 8, 8),
         child: Row(
           children: [
+            IconButton(
+              key: const Key('mic_button'),
+              onPressed: widget.enabled ? _toggleMic : null,
+              tooltip: _listening ? 'Stop listening' : 'Speak',
+              icon: Icon(
+                _listening ? Icons.mic : Icons.mic_none,
+                color: _listening ? colors.error : null,
+              ),
+            ),
             Expanded(
               child: TextField(
                 key: const Key('chat_input'),
@@ -43,12 +91,12 @@ class _ChatInputState extends State<ChatInput> {
                 textCapitalization: TextCapitalization.sentences,
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => _send(),
-                decoration: const InputDecoration(
-                  hintText: 'Write in English…',
-                  border: OutlineInputBorder(
+                decoration: InputDecoration(
+                  hintText: _listening ? 'Listening…' : 'Write in English…',
+                  border: const OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(24)),
                   ),
-                  contentPadding: EdgeInsets.symmetric(
+                  contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 10,
                   ),

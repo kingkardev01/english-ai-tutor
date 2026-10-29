@@ -19,12 +19,13 @@ class TutorSettingsNotifier extends Notifier<TutorSettings> {
   @override
   TutorSettings build() => const TutorSettings();
 
-  void setLevel(Level level) =>
-      state = TutorSettings(level: level, topic: state.topic);
+  void setLevel(Level level) => state = state.copyWith(level: level);
+
+  void setExplainInBangla(bool value) =>
+      state = state.copyWith(explainInBangla: value);
 
   /// Starts a new practice session on [topic].
-  void startTopic(Topic topic) =>
-      state = TutorSettings(level: state.level, topic: topic);
+  void startTopic(Topic topic) => state = state.copyWith(topic: topic);
 }
 
 /// Uses the Gemini API key from config.json when there is one, otherwise

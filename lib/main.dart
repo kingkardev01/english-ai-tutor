@@ -3,11 +3,14 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/app.dart';
 import 'core/config/app_config.dart';
 import 'features/auth/data/auth_providers.dart';
+import 'features/history/data/hive_history_repository.dart';
+import 'features/history/data/history_providers.dart';
 import 'features/progress/data/progress_providers.dart';
 
 Future<void> main() async {
@@ -35,11 +38,14 @@ Future<void> main() async {
   }
 
   final prefs = await SharedPreferences.getInstance();
+  await Hive.initFlutter();
+  final historyBox = await Hive.openBox<String>(HiveHistoryRepository.boxName);
 
   runApp(
     ProviderScope(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
+        historyBoxProvider.overrideWithValue(historyBox),
         // Sign-in needs Firebase; with only a Gemini key, the app opens
         // straight into the chat.
         signInEnabledProvider.overrideWithValue(firebaseOptions != null),

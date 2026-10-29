@@ -6,6 +6,7 @@ class Correction {
     required this.corrected,
     required this.explanation,
     required this.score,
+    this.banglaExplanation,
   });
 
   /// Parses the JSON returned by the grammar-check call.
@@ -24,6 +25,11 @@ class Correction {
       corrected: (json['corrected'] as String?)?.trim() ?? original,
       explanation: (json['explanation'] as String?)?.trim() ?? '',
       score: score.round().clamp(0, 10),
+      banglaExplanation: switch ((json['banglaExplanation'] as String?)
+          ?.trim()) {
+        final text? when text.isNotEmpty => text,
+        _ => null,
+      },
     );
   }
 
@@ -35,11 +41,15 @@ class Correction {
   /// 0-10, where 10 is a perfect sentence.
   final int score;
 
+  /// Only present when Bangla explanations are on.
+  final String? banglaExplanation;
+
   Map<String, dynamic> toJson() => {
     'original': original,
     'hasMistake': hasMistake,
     'corrected': corrected,
     'explanation': explanation,
     'score': score,
+    'banglaExplanation': ?banglaExplanation,
   };
 }

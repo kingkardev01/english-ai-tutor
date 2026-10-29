@@ -4,16 +4,18 @@ import 'package:english_ai_tutor/features/chat/domain/correction.dart';
 import 'package:english_ai_tutor/features/chat/domain/message.dart';
 import 'package:english_ai_tutor/features/chat/domain/tutor_settings.dart';
 import 'package:english_ai_tutor/features/chat/presentation/chat_controller.dart';
-import 'package:english_ai_tutor/features/progress/data/progress_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../helpers/fake_history_repository.dart';
 import '../../../helpers/fake_progress_repository.dart';
 import '../../../helpers/fake_tutor_repository.dart';
+import '../../../helpers/test_overrides.dart';
 
 void main() {
   late FakeTutorRepository repo;
   late FakeProgressRepository progress;
+  late FakeHistoryRepository history;
   late ProviderContainer container;
 
   ChatState state() => container.read(chatControllerProvider);
@@ -23,11 +25,13 @@ void main() {
   setUp(() {
     repo = FakeTutorRepository();
     progress = FakeProgressRepository();
+    history = FakeHistoryRepository();
     container = ProviderContainer(
-      overrides: [
-        tutorRepositoryProvider.overrideWithValue(repo),
-        progressRepositoryProvider.overrideWithValue(progress),
-      ],
+      overrides: testOverrides(
+        tutor: repo,
+        progress: progress,
+        history: history,
+      ),
     );
   });
 
@@ -167,5 +171,26 @@ void main() {
         Topic.travel,
       ]);
     });
+  });
+
+  test('saves the finished chat, with corrections, to history', () async {
+    container.read(tutorSettingsProvider.notifier).startTopic(Topic.travel);
+    repo.correctionFor = (s) => Correction(
+      original: s,
+      hasMistake: true,
+      corrected: 'I went there.',
+      explanation: '',
+      score: 5,
+    );
+
+    controller().send('I goed there.');
+    repo.emit('Nice!');
+    await repo.finish();
+    await pumpEventQueue();
+
+    final chat = history.chats.values.single;
+    expect(chat.topic, Topic.travel);
+    expect(chat.messages.map((m) => m.text), ['I goed there.', 'Nice!']);
+    expect(chat.messages.first.correction?.corrected, 'I went there.');
   });
 }

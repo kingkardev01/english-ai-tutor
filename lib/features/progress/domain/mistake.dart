@@ -7,6 +7,7 @@ class Mistake {
     required this.explanation,
     required this.createdAt,
     this.topic,
+    this.banglaExplanation,
     this.reviewed = false,
   });
 
@@ -18,6 +19,7 @@ class Mistake {
     explanation: json['explanation'] as String? ?? '',
     createdAt: DateTime.parse(json['createdAt'] as String),
     topic: json['topic'] as String?,
+    banglaExplanation: json['banglaExplanation'] as String?,
     reviewed: json['reviewed'] as bool? ?? false,
   );
 
@@ -30,6 +32,9 @@ class Mistake {
   /// Label of the practice topic it came from.
   final String? topic;
 
+  /// Only present when Bangla explanations were on.
+  final String? banglaExplanation;
+
   /// True once the learner has marked it as learned.
   final bool reviewed;
 
@@ -40,6 +45,7 @@ class Mistake {
     explanation: explanation,
     createdAt: createdAt,
     topic: topic,
+    banglaExplanation: banglaExplanation,
     reviewed: reviewed ?? this.reviewed,
   );
 
@@ -50,6 +56,7 @@ class Mistake {
     'explanation': explanation,
     'createdAt': createdAt.toIso8601String(),
     'topic': topic,
+    'banglaExplanation': ?banglaExplanation,
     'reviewed': reviewed,
   };
 }

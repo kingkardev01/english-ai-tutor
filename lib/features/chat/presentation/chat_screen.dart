@@ -1,16 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../voice/data/voice_providers.dart';
+import '../../voice/domain/voice_services.dart';
 import '../data/chat_providers.dart';
 import 'chat_controller.dart';
 import 'widgets/chat_input.dart';
 import 'widgets/message_bubble.dart';
 
-class ChatScreen extends ConsumerWidget {
+class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends ConsumerState<ChatScreen> {
+  // Read up front: providers can't be read in dispose().
+  late final SpeechOutput _tts;
+
+  @override
+  void initState() {
+    super.initState();
+    _tts = ref.read(speechOutputProvider);
+  }
+
+  @override
+  void dispose() {
+    _tts.stop();
+    super.dispose();
+  }
+
+  /// In voice mode, reads each tutor reply aloud once it has finished.
+  void _speakFinishedReplies(ChatState? previous, ChatState next) {
+    if (!ref.read(voiceModeProvider)) return;
+    final wasStreaming = {
+      for (final m in previous?.messages ?? const [])
+        if (m.isStreaming) m.id,
+    };
+    for (final m in next.messages) {
+      if (wasStreaming.contains(m.id) && !m.isStreaming && !m.isUser) {
+        _tts.speak(m.text);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen(chatControllerProvider, _speakFinishedReplies);
+    final voiceMode = ref.watch(voiceModeProvider);
     final state = ref.watch(chatControllerProvider);
     final settings = ref.watch(tutorSettingsProvider);
     final controller = ref.read(chatControllerProvider.notifier);
@@ -19,6 +57,19 @@ class ChatScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('AI English Tutor'),
+        actions: [
+          IconButton(
+            key: const Key('voice_mode_button'),
+            tooltip: voiceMode ? 'Turn voice mode off' : 'Turn voice mode on',
+            isSelected: voiceMode,
+            icon: const Icon(Icons.voice_over_off),
+            selectedIcon: const Icon(Icons.record_voice_over),
+            onPressed: () {
+              if (voiceMode) _tts.stop();
+              ref.read(voiceModeProvider.notifier).toggle();
+            },
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(20),
           child: Padding(
@@ -43,6 +94,7 @@ class ChatScreen extends ConsumerWidget {
                     itemBuilder: (_, i) => MessageBubble(
                       key: ValueKey(messages[i].id),
                       message: messages[i],
+                      onSpeak: () => _tts.speak(messages[i].text),
                     ),
                   ),
           ),

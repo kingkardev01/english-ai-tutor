@@ -68,6 +68,10 @@ class CorrectionCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(correction.explanation, style: theme.textTheme.bodySmall),
             ],
+            if (correction.banglaExplanation case final bangla?) ...[
+              const SizedBox(height: 4),
+              Text(bangla, style: theme.textTheme.bodySmall),
+            ],
           ],
         ),
       ),

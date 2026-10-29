@@ -4,9 +4,12 @@ import '../../domain/message.dart';
 import 'correction_card.dart';
 
 class MessageBubble extends StatelessWidget {
-  const MessageBubble({super.key, required this.message});
+  const MessageBubble({super.key, required this.message, this.onSpeak});
 
   final Message message;
+
+  /// Reads a finished tutor reply aloud; no speaker button when null.
+  final VoidCallback? onSpeak;
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +48,17 @@ class MessageBubble extends StatelessWidget {
             : CrossAxisAlignment.start,
         children: [
           bubble,
+          if (onSpeak != null &&
+              !isUser &&
+              !message.isStreaming &&
+              message.text.isNotEmpty)
+            IconButton(
+              tooltip: 'Listen',
+              visualDensity: VisualDensity.compact,
+              iconSize: 18,
+              onPressed: onSpeak,
+              icon: const Icon(Icons.volume_up_outlined),
+            ),
           if (message.failed)
             Padding(
               padding: const EdgeInsets.only(top: 4),
