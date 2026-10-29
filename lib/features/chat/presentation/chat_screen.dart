@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../auth/data/auth_providers.dart';
 import '../data/chat_providers.dart';
 import 'chat_controller.dart';
 import 'widgets/chat_input.dart';
@@ -30,14 +29,6 @@ class ChatScreen extends ConsumerWidget {
             ),
           ),
         ),
-        actions: [
-          if (ref.watch(signInEnabledProvider))
-            IconButton(
-              tooltip: 'Sign out',
-              icon: const Icon(Icons.logout),
-              onPressed: () => ref.read(authRepositoryProvider).signOut(),
-            ),
-        ],
       ),
       body: Column(
         children: [

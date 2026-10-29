@@ -17,9 +17,12 @@ _Coming soon: 3–4 phone screenshots in a row._
 - **Streaming AI conversation.** The tutor's reply appears word by word.
 - **Grammar correction cards.** Each sentence you send is checked separately and shown with the original, the corrected sentence, a one-line explanation and a score out of 10.
 - **Google sign-in** with Firebase Auth.
+- **Practice topics and levels.** Daily life, job interview, travel or IELTS speaking, at Beginner, Intermediate or Advanced. Both feed the tutor's system prompt, and each topic starts a fresh session.
+- **Progress tracking.** Daily streak, average score and sentences practised, saved to Firestore (or on the device when running without Firebase).
+- **Mistake review.** Every corrected mistake is saved; mark each one as learned once you've got it.
 - **Friendly error handling.** Offline → retry button that keeps your message; quota hit → "Tutor is busy"; blocked or empty reply → "Could you say that another way?"; bad JSON → the card is skipped, never a crash.
 
-Planned: practice topics and levels, progress and streaks, mistake review, voice mode, Bangla explanations, offline history.
+Planned: voice mode, Bangla explanations, offline chat history.
 
 ## Architecture
 
@@ -27,12 +30,18 @@ Planned: practice topics and levels, progress and streaks, mistake review, voice
 lib/
   main.dart                # Firebase + App Check init, ProviderScope
   app/                     # App widget, theme
-  core/                    # config (keys from config.json), failures, constants
+  core/                    # config (keys from config.json), failures, constants, utils
   features/
     chat/
       domain/              # Message, Correction, TutorSettings, TutorRepository (interface)
       data/                # AiService (Firebase AI Logic or Gemini API), ChatRepositoryImpl, prompts
       presentation/        # ChatScreen, ChatController, widgets/
+    topics/
+      presentation/        # TopicsScreen (home: level + topic picker, streak)
+    progress/
+      domain/              # Progress (streak + score logic), Mistake, ProgressRepository (interface)
+      data/                # FirestoreProgressRepository, LocalProgressRepository
+      presentation/        # ProgressScreen, MistakesScreen
     auth/
       domain/ data/ presentation/
 test/                      # mirrors lib/
@@ -40,7 +49,21 @@ test/                      # mirrors lib/
 
 - **Clean architecture.** Screens never call Firebase. They talk to `TutorRepository`, and only the data layer knows Gemini exists, so the model can be swapped, or faked in tests, without touching the UI.
 - **Riverpod.** `ChatController` (a `Notifier`) owns the chat state. Tests override `tutorRepositoryProvider` with a fake.
+- **Progress behind an interface too.** `ProgressRepository` has a Firestore version (signed in) and a `shared_preferences` version (Gemini key only). The chat saves progress in the background, and a failed save never interrupts the conversation.
 - **Two Gemini calls per message.** A streaming chat call for the conversation and a structured-JSON call (`responseSchema`) for the grammar check run in parallel. The reply starts immediately, and the correction card appears when it is ready.
+
+## Data model
+
+All user data lives under one document per user, so the security rules in [`firestore.rules`](firestore.rules) stay simple: a user can read and write only their own path.
+
+```
+users/{uid}                  level, streakDays, lastPracticeDate, totalScore, sentencesChecked
+  sessions/{sessionId}       topic, level, startedAt, messageCount, avgScore
+    messages/{messageId}     role (user | tutor), text, createdAt
+  mistakes/{mistakeId}       original, corrected, explanation, topic, createdAt, reviewed
+```
+
+Each correction updates the streak, the session average and the mistake list in one transaction, so they never disagree.
 
 ## Technical challenges
 
@@ -91,7 +114,7 @@ Fill in **either or both** of these:
 flutter test
 ```
 
-Unit tests cover `Correction.fromJson`, the prompts, the repository with a mocked `AiService` (mocktail), and the Gemini REST client with a fake HTTP client (SSE parsing, history, errors). The controller and widget tests drive a fake `TutorRepository` chunk by chunk to check streaming, correction cards and retry.
+Unit tests cover `Correction.fromJson`, the prompts, the repository with a mocked `AiService` (mocktail), and the Gemini REST client with a fake HTTP client (SSE parsing, history, errors). Progress tests cover streak rules (same day, next day, missed day, month boundary), on-device storage and the Firestore repository against `fake_cloud_firestore`. The controller and widget tests drive a fake `TutorRepository` chunk by chunk to check streaming, correction cards, retry, topic switching and mistake review.
 
 ## What I learned
 

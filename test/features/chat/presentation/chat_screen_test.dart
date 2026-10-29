@@ -2,10 +2,12 @@ import 'package:english_ai_tutor/core/errors/tutor_failure.dart';
 import 'package:english_ai_tutor/features/chat/data/chat_providers.dart';
 import 'package:english_ai_tutor/features/chat/domain/correction.dart';
 import 'package:english_ai_tutor/features/chat/presentation/chat_screen.dart';
+import 'package:english_ai_tutor/features/progress/data/progress_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../helpers/fake_progress_repository.dart';
 import '../../../helpers/fake_tutor_repository.dart';
 
 void main() {
@@ -13,7 +15,10 @@ void main() {
 
   Future<void> pumpChat(WidgetTester tester) => tester.pumpWidget(
     ProviderScope(
-      overrides: [tutorRepositoryProvider.overrideWithValue(repo)],
+      overrides: [
+        tutorRepositoryProvider.overrideWithValue(repo),
+        progressRepositoryProvider.overrideWithValue(FakeProgressRepository()),
+      ],
       child: const MaterialApp(home: ChatScreen()),
     ),
   );

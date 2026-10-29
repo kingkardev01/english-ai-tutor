@@ -1,11 +1,16 @@
 import 'dart:async';
+import 'dart:developer';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/tutor_failure.dart';
+import '../../progress/data/progress_providers.dart';
+import '../../progress/domain/progress_repository.dart';
 import '../data/chat_providers.dart';
+import '../domain/correction.dart';
 import '../domain/message.dart';
 import '../domain/tutor_repository.dart';
+import '../domain/tutor_settings.dart';
 
 class ChatState {
   const ChatState({
@@ -40,19 +45,31 @@ final chatControllerProvider = NotifierProvider<ChatController, ChatState>(
 
 /// Runs the streaming reply and the grammar check in parallel, so the
 /// reply starts immediately and the correction card appears when ready.
+///
+/// Each finished exchange and each correction is saved to progress. Saving
+/// never blocks or breaks the chat; a failed save is only logged.
 class ChatController extends Notifier<ChatState> {
   StreamSubscription<String>? _replySub;
+  Future<String>? _session;
+  late TutorSettings _settings;
   int _nextId = 0;
 
   TutorRepository get _repo => ref.read(tutorRepositoryProvider);
 
+  /// Rebuilds, and so starts an empty chat, whenever the topic or level
+  /// changes.
   @override
   ChatState build() {
+    _settings = ref.watch(tutorSettingsProvider);
+    _replySub?.cancel();
+    _session = null;
     ref.onDispose(() => _replySub?.cancel());
     return const ChatState();
   }
 
-  void send(String text) {
+  void send(String text) => _send(text);
+
+  void _send(String text, {Correction? correction}) {
     final trimmed = text.trim();
     if (trimmed.isEmpty || state.isReplying) return;
 
@@ -60,6 +77,7 @@ class ChatController extends Notifier<ChatState> {
       id: _newId(),
       role: MessageRole.user,
       text: trimmed,
+      correction: correction,
     );
     final tutorMsg = Message(
       id: _newId(),
@@ -73,7 +91,8 @@ class ChatController extends Notifier<ChatState> {
       clearFailure: true,
     );
 
-    unawaited(_checkGrammar(userMsg));
+    // A retried message keeps its first check, so it is scored only once.
+    if (correction == null) unawaited(_checkGrammar(userMsg));
 
     _replySub = _repo
         .reply(trimmed)
@@ -85,6 +104,23 @@ class ChatController extends Notifier<ChatState> {
           onDone: () {
             _update(tutorMsg.id, (m) => m.copyWith(isStreaming: false));
             state = state.copyWith(isReplying: false);
+            final reply = state.messages
+                .where((m) => m.id == tutorMsg.id)
+                .firstOrNull;
+            // Saved only once the exchange succeeds, so retries don't
+            // duplicate messages.
+            unawaited(
+              _saveProgress((repo, sessionId) async {
+                await repo.saveMessage(sessionId, MessageRole.user, trimmed);
+                if (reply != null) {
+                  await repo.saveMessage(
+                    sessionId,
+                    MessageRole.tutor,
+                    reply.text,
+                  );
+                }
+              }),
+            );
           },
           cancelOnError: true,
         );
@@ -98,13 +134,38 @@ class ChatController extends Notifier<ChatState> {
       messages: state.messages.where((m) => m.id != failed.id).toList(),
       clearFailure: true,
     );
-    send(failed.text);
+    _send(failed.text, correction: failed.correction);
   }
 
   Future<void> _checkGrammar(Message userMsg) async {
+    final topic = _settings.topic;
     final correction = await _repo.check(userMsg.text);
     if (!ref.mounted || correction == null) return;
     _update(userMsg.id, (m) => m.copyWith(correction: correction));
+    await _saveProgress(
+      (repo, sessionId) =>
+          repo.recordCorrection(sessionId, correction, topic: topic),
+    );
+  }
+
+  Future<void> _saveProgress(
+    Future<void> Function(ProgressRepository repo, String sessionId) save,
+  ) async {
+    try {
+      final repo = ref.read(progressRepositoryProvider);
+      final session = _session ??= repo.startSession(_settings);
+      final String sessionId;
+      try {
+        sessionId = await session;
+      } on Object {
+        // Let the next save try to start the session again.
+        if (identical(_session, session)) _session = null;
+        rethrow;
+      }
+      await save(repo, sessionId);
+    } on Object catch (e) {
+      log('Progress not saved', error: e, name: 'ChatController');
+    }
   }
 
   void _onReplyFailed(String userId, String tutorId, Object error) {

@@ -8,11 +8,24 @@ import 'chat_repository_impl.dart';
 import 'firebase_ai_service.dart';
 import 'gemini_api_service.dart';
 
-/// Level and topic for the current session. Phase 2 adds a picker that
-/// updates this; a new value starts a fresh Gemini chat session.
-final tutorSettingsProvider = Provider<TutorSettings>(
-  (ref) => const TutorSettings(),
-);
+/// Level and topic for the current session. Every change, even to the same
+/// values, starts a fresh Gemini chat session.
+final tutorSettingsProvider =
+    NotifierProvider<TutorSettingsNotifier, TutorSettings>(
+      TutorSettingsNotifier.new,
+    );
+
+class TutorSettingsNotifier extends Notifier<TutorSettings> {
+  @override
+  TutorSettings build() => const TutorSettings();
+
+  void setLevel(Level level) =>
+      state = TutorSettings(level: level, topic: state.topic);
+
+  /// Starts a new practice session on [topic].
+  void startTopic(Topic topic) =>
+      state = TutorSettings(level: state.level, topic: topic);
+}
 
 /// Uses the Gemini API key from config.json when there is one, otherwise
 /// Firebase AI Logic.
